@@ -1,0 +1,14 @@
+{
+  "name": "replay_buffer",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "pcap": "^3.1.0"
+  }
+}
