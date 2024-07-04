@@ -16,12 +16,16 @@ import queue
 import threading
 from obs import OBS
 from cam import get_available_cameras,test_camera,DeathMonitor
+import subprocess
 
 from typing import Callable,List
 
 # ?==========GLOBALS========== 
 obs = None
+death_monitor = None
 camera_indexes = []
+death_monitor_threshold = 0.6
+death_monitor_logger = {}
 # ?===========================
 session = PromptSession(output=Win32Output(create_output()))
 
@@ -134,9 +138,17 @@ def connect_to_obs():
 
 def cameras_api_func():
     global camera_indexes
-    time.sleep(2)
+    # time.sleep(2)
     camera_indexes = get_available_cameras()
+    if len(camera_indexes) == 0:
+        raise Exception("No camera is available")
     return f"Available camera indexes: {camera_indexes}"
+
+def is_there_only_camera_api_func():
+    global camera_indexes
+    if len(camera_indexes) == 1:
+        user_inputs["camera_index"] = str(camera_indexes[0])
+        raise Exception("Camera is only one. Skip selecting camera.")
 
 def obs_init_api_func():
     global obs
@@ -152,27 +164,34 @@ def test_camera_api_func():
 
 # TODO o.delete_replay()実装しといて
 def death_monitor_api_func():
-    global obs
+    global obs,death_monitor_logger,death_monitor_threshold,death_monitor
     camera_index = int(user_inputs.get("camera_index"))
-    monitor = DeathMonitor(camera_index)
+    death_monitor = DeathMonitor(camera_index)
+    death_monitor.set_logger(death_monitor_logger)
     def callback():
         path = obs.save_replay()
         print(f"{path=}")
-        monitor.show_movie(path,speed_ratio=0.5)
-    monitor.run(callback)
+        death_monitor.show_movie(path,speed_ratio=0.5)
+    death_monitor.run(callback,death_monitor_threshold)
 
 
 class CheckPoints(Enum):
     OBS = auto()
+    SKIP_SELECT_CAMERA = auto()
+    EXIT = auto()
 
 
 checkpoint_register = CheckPointRegister()
 
 connect_obs_api = CallAPI(Spinner("dots",text="Connecting..."),connect_to_obs,checkpoint_register.get(CheckPoints.OBS))
 obs_init_api = CallAPI(Spinner("dots",text="Setting up your OBS VirtualCam & ReplayBuffer..."),obs_init_api_func)
-cameras_api = CallAPI(Spinner("dots",text="Getting Camera Indexes..."),cameras_api_func)
+# カメラが1つしかないときはcheckpointまで飛ばす
+cameras_api = CallAPI(Spinner("dots",text="Getting Camera Indexes..."),cameras_api_func,checkpoint_register.get(CheckPoints.EXIT))
+is_there_only_camera_api = CallAPI(Spinner("dots"),is_there_only_camera_api_func,checkpoint_register.get(CheckPoints.SKIP_SELECT_CAMERA))
 test_camera_api = CallAPI(Spinner("dots",text="Testing Camera..."),test_camera_api_func)
 death_monitor_api = CallAPI(Spinner("dots",text="Waiting for your death..."),death_monitor_api_func)
+
+exit_api = CallAPI(Spinner("dots",text="Exiting..."),lambda: subprocess.call("PAUSE",shell=True))
 
 commands = [
     "Hello!", 
@@ -185,15 +204,17 @@ commands = [
     obs_init_api,
     "Next, Select Your OBS VirtualCam",
     cameras_api,
+    is_there_only_camera_api,
     PromptMessage("Enter the camera index> ","camera_index"),
     test_camera_api,
+    # カメラ1つしかないときはここまでskip
+    checkpoint_register.get(CheckPoints.SKIP_SELECT_CAMERA),
     "Camera Selected!",
-    "Launch Death Monitor...",
-    death_monitor_api,
-    # CallAPI(Spinner("dots",text="Selecting camera..."),lambda: input()),
-    # "Dammy",
-    # "Dammy",
-    # "Dammy",
+    CallAPI(Spinner("dots",text="Launch Death Monitor..."),lambda:time.sleep(2)),
+    # death_monitor_api,
+    # # CallAPI(Spinner("dots",text="Selecting camera..."),lambda: input()),
+    # checkpoint_register.get(CheckPoints.EXIT),
+    # exit_api
     ]
 
 def display_message(message:str|PromptMessage):
@@ -259,3 +280,22 @@ with Live(layout,refresh_per_second=rps,screen=True) as live:
             layout["lower"].update(Panel(layout_texts,style="bold green"))
         
         cmd_index += 1
+    # Death Monitor Loop
+    death_monitor_api.call()
+    while 1:
+        panel_color = "green"
+        if not death_monitor_api.is_running():
+            if not death_monitor_api.is_successful():
+                a = death_monitor_api.get_error()
+            break
+        text = Text()
+        # TODO mp4再生時にfpsとblack_ratio更新されないから，threadingとかで退避させて
+        fps = death_monitor_logger.get("fps",None)
+        if fps is not None:
+            fps = f"{fps: .1f}"
+        black_ratio = death_monitor_logger.get("black_ratio",None)
+        if (black_ratio is not None) and (black_ratio > death_monitor_threshold):
+            panel_color = "red"
+        text.append(f"fps:{fps}\n",style="bold green")
+        text.append(f"black_ratio:{black_ratio}\n",style="bold green")
+        layout["lower"].update(Panel(text,style=f"bold {panel_color}"))

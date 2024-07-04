@@ -55,5 +55,5 @@ class OBS:
             os.remove(path)
             
 
-o = OBS("localhost",4455,"uc70NkXRBNvMzWSW")
-o.init_cam_replay()
+# o = OBS("localhost",4455,"uc70NkXRBNvMzWSW")
+# o.init_cam_replay()
