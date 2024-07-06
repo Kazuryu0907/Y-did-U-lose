@@ -189,7 +189,7 @@ def determine_camera_api_func():
         raise Exception("Reselect another camera")
 
 is_y_or_n_validator = Validator.from_callable(lambda s: s.lower() in ["y","n"],error_message="Please enter y or n",move_cursor_to_end=True)
-camera_indexes_validator = Validator.from_callable(lambda s: s.isdigit() and int(s) in camera_indexes,error_message=f"Please enter the camera index from the options in [].",move_cursor_to_end=True)
+camera_indexes_validator = Validator.from_callable(lambda s: s.isdigit() and int(s) in camera_indexes,error_message=f"Please enter the camera index from the options in [].Please enter the camera index from the options in [].",move_cursor_to_end=True)
 
 class CheckPoints(Enum):
     OBS = auto()
