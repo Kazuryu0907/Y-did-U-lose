@@ -19,7 +19,7 @@ from obs import OBS
 from cam import get_available_cameras,test_camera,DeathMonitor
 import subprocess
 
-from typing import Callable,List
+from typing import Callable,List,Self
 
 # ?==========GLOBALS========== 
 obs = None
@@ -87,6 +87,7 @@ class PromptMessage:
         # Validatorが次のSessionに引き継がれるので対策
         if self.kwargs.get("validator") is None:
             session.validator = None
+
         msg = session.prompt(self.prompt,**self.kwargs)
         # msg = prompt(self.prompt,**self.kwargs)
         user_inputs[self.prompt_name] = msg
@@ -188,6 +189,7 @@ def determine_camera_api_func():
         raise Exception("Reselect another camera")
 
 is_y_or_n_validator = Validator.from_callable(lambda s: s.lower() in ["y","n"],error_message="Please enter y or n",move_cursor_to_end=True)
+camera_indexes_validator = Validator.from_callable(lambda s: s.isdigit() and int(s) in camera_indexes,error_message=f"Please enter the camera index from the options in [].",move_cursor_to_end=True)
 
 class CheckPoints(Enum):
     OBS = auto()
@@ -222,7 +224,7 @@ commands = [
     checkpoint_register.get(CheckPoints.RESELECT_CAMERA),
     cameras_api,
     is_there_only_camera_api,
-    PromptMessage("Enter the camera index> ","camera_index"),
+    PromptMessage("Enter the camera index> ","camera_index",validator=camera_indexes_validator),
     test_camera_api,
     # カメラがokか確認
     PromptMessage("Was this camera OK? (y/n)> ","determine_camera",validator=is_y_or_n_validator),
