@@ -5,10 +5,11 @@ from rich.text import Text
 from rich.align import Align
 from rich.live import Live
 from rich.spinner import Spinner
-from prompt_toolkit import PromptSession
+from prompt_toolkit import PromptSession,prompt
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.output.win32 import Win32Output
 from prompt_toolkit.output import create_output
+from prompt_toolkit.validation import Validator
 import pyfiglet
 import time
 from enum import Enum,auto
@@ -81,8 +82,13 @@ class PromptMessage:
         self.prompt = prompt
         self.prompt_name = prompt_name
         self.kwargs = kwargs
+
     def ask(self):
+        # Validatorが次のSessionに引き継がれるので対策
+        if self.kwargs.get("validator") is None:
+            session.validator = None
         msg = session.prompt(self.prompt,**self.kwargs)
+        # msg = prompt(self.prompt,**self.kwargs)
         user_inputs[self.prompt_name] = msg
         msg = f"{self.prompt_name}: {msg}"
         return msg
@@ -174,10 +180,19 @@ def death_monitor_api_func():
         death_monitor.show_movie(path,speed_ratio=0.5)
     death_monitor.run(callback,death_monitor_threshold)
 
+def determine_camera_api_func():
+    ans = user_inputs.get("determine_camera")
+    if ans == "y":
+        return None
+    elif ans == "n":
+        raise Exception("Reselect another camera")
+
+is_y_or_n_validator = Validator.from_callable(lambda s: s.lower() in ["y","n"],error_message="Please enter y or n",move_cursor_to_end=True)
 
 class CheckPoints(Enum):
     OBS = auto()
     SKIP_SELECT_CAMERA = auto()
+    RESELECT_CAMERA = auto()
     EXIT = auto()
 
 
@@ -189,6 +204,7 @@ obs_init_api = CallAPI(Spinner("dots",text="Setting up your OBS VirtualCam & Rep
 cameras_api = CallAPI(Spinner("dots",text="Getting Camera Indexes..."),cameras_api_func,checkpoint_register.get(CheckPoints.EXIT))
 is_there_only_camera_api = CallAPI(Spinner("dots"),is_there_only_camera_api_func,checkpoint_register.get(CheckPoints.SKIP_SELECT_CAMERA))
 test_camera_api = CallAPI(Spinner("dots",text="Testing Camera..."),test_camera_api_func)
+determine_camera_api = CallAPI(Spinner("dots"),determine_camera_api_func,checkpoint_register.get(CheckPoints.RESELECT_CAMERA))
 death_monitor_api = CallAPI(Spinner("dots",text="Waiting for your death..."),death_monitor_api_func)
 
 exit_api = CallAPI(Spinner("dots",text="Exiting..."),lambda: subprocess.call("PAUSE",shell=True))
@@ -203,10 +219,14 @@ commands = [
     connect_obs_api,
     obs_init_api,
     "Next, Select Your OBS VirtualCam",
+    checkpoint_register.get(CheckPoints.RESELECT_CAMERA),
     cameras_api,
     is_there_only_camera_api,
     PromptMessage("Enter the camera index> ","camera_index"),
     test_camera_api,
+    # カメラがokか確認
+    PromptMessage("Was this camera OK? (y/n)> ","determine_camera",validator=is_y_or_n_validator),
+    determine_camera_api,
     # カメラ1つしかないときはここまでskip
     checkpoint_register.get(CheckPoints.SKIP_SELECT_CAMERA),
     "Camera Selected!",
