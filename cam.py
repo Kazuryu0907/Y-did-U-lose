@@ -2,7 +2,8 @@ import cv2
 import time
 import numpy as np
 from typing import Callable,Dict
-
+import os
+import logging
 
 def get_available_cameras(max_cameras=10):
     available_cameras = []
@@ -95,28 +96,30 @@ class DeathMonitor:
 
             self.prev_black_flag = black_flag
             iter += 1
-    def show_movie(self,path:str,speed_ratio=1.):
-        mv = cv2.VideoCapture(path)
-        height = mv.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        width = mv.get(cv2.CAP_PROP_FRAME_WIDTH)
-        fps = mv.get(cv2.CAP_PROP_FPS)
-        wait_time = (1/fps)*(1./speed_ratio)
-        print(f"{wait_time=}")
-        while (mv.isOpened()):
-            start = time.time()
-            ret, frame = mv.read()
-            if frame is None:
-                break
-            resized_frame = cv2.resize(frame,(int(width/2),int(height/2)))
-            cv2.imshow("Death Monitor",resized_frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
-            # FPS調整
-            while time.time() - start < wait_time:
-                pass
-            
-        mv.release()
-        cv2.destroyAllWindows()
+    
+def show_movie(path:str,speed_ratio=1.):
+    mv = cv2.VideoCapture(path)
+    height = mv.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    width = mv.get(cv2.CAP_PROP_FRAME_WIDTH)
+    fps = mv.get(cv2.CAP_PROP_FPS)
+    wait_time = (1/fps)*(1./speed_ratio)
+    wait_time_ms = int(wait_time*1000)
+
+    print(f"{wait_time=}")
+    while (mv.isOpened()):
+        ret, frame = mv.read()
+        if frame is None:
+            break
+        resized_frame = frame[int(height/3):int(2*height/3),int(width/3):int(2*width/3),:]
+        # resized_frame = cv2.resize(frame,(int(width/2),int(height/2)))
+        resized_frame = cv2.resize(resized_frame,(int(width/3*1.5),int(height/3*1.5)))
+        cv2.imshow("Death Monitor",resized_frame)
+        # FPS調整
+        if cv2.waitKey(wait_time_ms) & 0xFF == ord("q"):
+            break
+    os.remove(path)
+    mv.release()
+    cv2.destroyAllWindows()
 if __name__ == "__main__":
     # capture = cv2.VideoCapture(1)
     test_camera(1)

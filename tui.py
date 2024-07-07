@@ -16,8 +16,10 @@ from enum import Enum,auto
 import queue
 import threading
 from obs import OBS
-from cam import get_available_cameras,test_camera,DeathMonitor
+from cam import get_available_cameras,test_camera,DeathMonitor,show_movie
 import subprocess
+from logging import getLogger
+import logging
 
 from typing import Callable,List,Self
 
@@ -29,6 +31,8 @@ death_monitor_threshold = 0.6
 death_monitor_logger = {}
 # ?===========================
 session = PromptSession(output=Win32Output(create_output()))
+logger = getLogger(__name__)
+logging.basicConfig(filename="logger.log",level=logging.DEBUG)
 
 title = pyfiglet.figlet_format("Y did U lose?",font="isometric1")
 
@@ -155,6 +159,7 @@ def is_there_only_camera_api_func():
     global camera_indexes
     if len(camera_indexes) == 1:
         user_inputs["camera_index"] = str(camera_indexes[0])
+        time.sleep(2)
         raise Exception("Camera is only one. Skip selecting camera.")
 
 def obs_init_api_func():
@@ -170,6 +175,7 @@ def test_camera_api_func():
     return None
 
 # TODO o.delete_replay()実装しといて
+import multiprocessing
 def death_monitor_api_func():
     global obs,death_monitor_logger,death_monitor_threshold,death_monitor
     camera_index = int(user_inputs.get("camera_index"))
@@ -178,7 +184,8 @@ def death_monitor_api_func():
     def callback():
         path = obs.save_replay()
         print(f"{path=}")
-        death_monitor.show_movie(path,speed_ratio=0.5)
+        show_movie(path,0.5)
+        # multiprocessing.Process(target=show_movie,args=(path,)).start()
     death_monitor.run(callback,death_monitor_threshold)
 
 def determine_camera_api_func():
@@ -232,7 +239,7 @@ commands = [
     # カメラ1つしかないときはここまでskip
     checkpoint_register.get(CheckPoints.SKIP_SELECT_CAMERA),
     "Camera Selected!",
-    CallAPI(Spinner("dots",text="Launch Death Monitor..."),lambda:time.sleep(2)),
+    CallAPI(Spinner("dots",text="Launching Death Monitor..."),lambda:time.sleep(2)),
     # death_monitor_api,
     # # CallAPI(Spinner("dots",text="Selecting camera..."),lambda: input()),
     # checkpoint_register.get(CheckPoints.EXIT),
