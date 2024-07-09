@@ -117,9 +117,9 @@ def show_movie(path:str,speed_ratio=1.):
         # FPS調整
         if cv2.waitKey(wait_time_ms) & 0xFF == ord("q"):
             break
-    os.remove(path)
     mv.release()
     cv2.destroyAllWindows()
+    os.remove(path)
 if __name__ == "__main__":
     # capture = cv2.VideoCapture(1)
     test_camera(1)
